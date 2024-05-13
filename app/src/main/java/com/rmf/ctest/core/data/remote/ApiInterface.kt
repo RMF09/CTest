@@ -40,7 +40,4 @@ interface ApiInterface {
         @Field("email") email: String,
     ): Response<ResponseData<ProfileDto>>
 
-
-
-
 }

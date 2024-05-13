@@ -1,3 +1,5 @@
+@file:Suppress("IMPLICIT_CAST_TO_ANY")
+
 package com.rmf.ctest.feature.login
 
 import android.net.Uri
@@ -56,9 +58,6 @@ import com.facebook.FacebookCallback
 import com.facebook.FacebookException
 import com.facebook.login.LoginManager
 import com.facebook.login.LoginResult
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FacebookAuthProvider
 import com.google.firebase.auth.auth
@@ -69,7 +68,6 @@ import com.ramcosta.composedestinations.navigation.popUpTo
 import com.ramcosta.composedestinations.result.NavResult
 import com.ramcosta.composedestinations.result.ResultRecipient
 import com.rmf.ctest.R
-import com.rmf.ctest.core.data.clientID
 import com.rmf.ctest.core.domain.model.Profile
 import com.rmf.ctest.feature.NavGraphs
 import com.rmf.ctest.feature.destinations.CameraScreenDestination
@@ -80,8 +78,8 @@ import com.rmf.ctest.feature.login.LoginWith.EMAIL
 import com.rmf.ctest.feature.login.LoginWith.FACE
 import com.rmf.ctest.feature.login.LoginWith.FACEBOOK
 import com.rmf.ctest.feature.login.LoginWith.GOOGLE
-import com.rmf.ctest.rememberFirebaseAuthLauncher
 import com.rmf.ctest.ui.component.ErrorDialog
+import com.rmf.ctest.ui.component.GoogleAuthUiClient
 import com.rmf.ctest.ui.component.LoadingDialog
 import com.rmf.ctest.util.exhaustive
 import com.rmf.ctest.util.toBitmap
@@ -98,22 +96,12 @@ fun LoginScreen(
 ) {
     val state = viewModel.state
     val currentEmailLogin = viewModel.sessionManager.getEmail()
-    val launcher =
-        rememberFirebaseAuthLauncher(
-            onAuthComplete = { result ->
-                viewModel.login(
-                    GOOGLE,
-                    profile = Profile(
-                        email = result.user!!.email!!,
-                        name = result.user!!.displayName!!
-                    )
-                )
-            },
-            onAuthError = {
-            }
-        )
 
     val context = LocalContext.current
+
+    val googleAuth = remember {
+        GoogleAuthUiClient(context)
+    }
 
     resultRecipient.onNavResult { result ->
         when (result) {
@@ -131,7 +119,7 @@ fun LoginScreen(
     val launcherFB = rememberLauncherForActivityResult(
         loginManager.createLogInActivityResultContract(callbackManager, null)
     ) {
-        Log.e("TAG", "Login FB callback ", )
+        Log.e("TAG", "Login FB callback ")
     }
 
     DisposableEffect(Unit) {
@@ -139,7 +127,7 @@ fun LoginScreen(
             callbackManager,
             object : FacebookCallback<LoginResult> {
                 override fun onCancel() {
-                    Log.e("TAG", "onCancel: Fb " )
+                    Log.e("TAG", "onCancel: Fb ")
                 }
 
                 override fun onError(error: FacebookException) {
@@ -207,13 +195,25 @@ fun LoginScreen(
                         }
 
                         GOOGLE -> {
-                            val gso =
-                                Builder(DEFAULT_SIGN_IN)
-                                    .requestIdToken(clientID)
-                                    .requestEmail()
-                                    .build()
-                            val googleSignInClient = GoogleSignIn.getClient(context, gso)
-                            launcher.launch(googleSignInClient.signInIntent)
+                            scope.launch {
+                                googleAuth.signIn(
+                                    onAuthComplete = { authResult ->
+                                        Log.e("TAG", "AccountScreen: Success ${authResult.user}")
+                                        viewModel.login(
+                                            loginWith = GOOGLE,
+                                            profile = Profile(
+                                                name = authResult.user?.displayName.toString(),
+                                                email = authResult.user?.email.toString(),
+                                                image = authResult.user?.photoUrl.toString()
+                                            )
+                                        )
+                                    },
+                                    onAuthError = { error ->
+                                        Log.e("TAG", "AccountScreen: Error = $error  ")
+                                    }
+                                )
+
+                            }
                         }
 
                         FACEBOOK -> {
